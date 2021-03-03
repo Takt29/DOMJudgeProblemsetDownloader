@@ -15,7 +15,6 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('url', type=str, help='DOMJudge URL')
 parser.add_argument('-o', '--output', type=str, default='.')
-parser.add_argument('--interval', type=str, default='.')
 
 
 def downloadProblemText(domjudge_url, problemName, problemId):
