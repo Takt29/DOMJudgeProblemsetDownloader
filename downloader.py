@@ -9,6 +9,7 @@ import zipfile
 from io import BytesIO
 from bs4 import BeautifulSoup
 import argparse
+import mimetypes
 
 parser = argparse.ArgumentParser(
     description='Download Problemset from DOMJudge')
@@ -17,26 +18,30 @@ parser.add_argument('url', type=str, help='DOMJudge URL')
 parser.add_argument('-o', '--output', type=str, default='.')
 
 
-def downloadProblemText(domjudge_url, problemName, problemId):
+def downloadProblemText(domjudge_url, problemName, problemId, file_dir):
     text_url = f'{domjudge_url}/public/problems/{problemId}/text'
-    return BytesIO(requests.get(text_url).content)
+    r = requests.get(text_url)
+
+    ext = mimetypes.guess_extension(r.headers['content-type'].split(';')[0])
+
+    file_path = os.path.join(file_dir, f'{problemName}{ext}')
+
+    with open(file_path, 'wb') as f:
+        f.write(r.content)
+
+    return file_path
 
 
 def downloadProblemTexts(domjudge_url, problems, output_dir):
     pdf_merger = PyPDF2.PdfFileMerger()
 
     for problem in problems:
-        pdf_obj = downloadProblemText(
-            domjudge_url, problem['name'], problem['id'])
+        file_path = downloadProblemText(
+            domjudge_url, problem['name'], problem['id'], output_dir)
 
-        filepath = os.path.join(output_dir, f'{problem["name"]}.pdf')
+        pdf_merger.append(file_path)
 
-        with open(filepath, 'wb') as f:
-            f.write(pdf_obj.read())
-
-        pdf_merger.append(filepath)
-
-        print(f'downloaded {filepath}')
+        print(f'downloaded {file_path}')
 
         time.sleep(2)
 
