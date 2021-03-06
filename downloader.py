@@ -16,11 +16,71 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('url', type=str, help='DOMJudge URL')
 parser.add_argument('-o', '--output', type=str, default='.')
+parser.add_argument('-u', '--user', type=str, default='.')
+parser.add_argument('-p', '--password', type=str, default='.')
 
 
-def downloadProblemText(domjudge_url, problemName, problemId, file_dir):
-    text_url = f'{domjudge_url}/public/problems/{problemId}/text'
-    r = requests.get(text_url)
+class DOMJudgeConnector:
+    session = None
+    loggedin = False
+    host = None
+
+    def __init__(self, host, username=None, password=None):
+        self.host = host
+        self.session = requests.Session()
+
+        if username and password:
+            r = self.login(username, password)
+
+            if r.status_code != requests.codes.ok:
+                print('Login failed')
+                exit(1)
+
+            print('Successfully logged in')
+            self.loggedin = True
+
+    def login(self, username, password):
+        url = f'{self.host}/login'
+
+        r = self.session.get(url)
+
+        soup = BeautifulSoup(r.content, 'html.parser')
+
+        csrf = soup.find('input', attrs={'name': '_csrf_token'})['value']
+
+        return self.session.post(f'{self.host}/login', data={
+            "_csrf_token": csrf,
+            "_username": username,
+            "_password": password,
+        }, headers=dict(Referer=url))
+
+    def getProblemText(self, problemId):
+        if self.loggedin:
+            url = f'{self.host}/team/problems/{problemId}/text'
+        else:
+            url = f'{self.host}/public/problems/{problemId}/text'
+
+        return self.session.get(url)
+
+    def getProblemList(self):
+        if self.loggedin:
+            url = f'{self.host}/team/scoreboard'
+        else:
+            url = f'{self.host}/public'
+
+        return self.session.get(url)
+
+    def getProblemSample(self, problemId):
+        if self.loggedin:
+            url = f'{self.host}/team/{problemId}/samples.zip'
+        else:
+            url = f'{self.host}/public/{problemId}/samples.zip'
+
+        return self.session.get(url)
+
+
+def downloadProblemText(conn, problemName, problemId, file_dir):
+    r = conn.getProblemText(problemId)
 
     ext = mimetypes.guess_extension(r.headers['content-type'].split(';')[0])
 
@@ -32,12 +92,12 @@ def downloadProblemText(domjudge_url, problemName, problemId, file_dir):
     return file_path
 
 
-def downloadProblemTexts(domjudge_url, problems, output_dir):
+def downloadProblemTexts(conn, problems, output_dir):
     pdf_merger = PyPDF2.PdfFileMerger()
 
     for problem in problems:
         file_path = downloadProblemText(
-            domjudge_url, problem['name'], problem['id'], output_dir)
+            conn, problem['name'], problem['id'], output_dir)
 
         pdf_merger.append(file_path)
 
@@ -49,29 +109,27 @@ def downloadProblemTexts(domjudge_url, problems, output_dir):
     pdf_merger.close()
 
 
-def downloadProblemSample(domjudge_url, problemId, output_dir):
-    zip_url = f'{domjudge_url}/public/{problemId}/samples.zip'
-
-    fileSteram = BytesIO(requests.get(zip_url).content)
+def downloadProblemSample(conn, problemId, output_dir):
+    fileSteram = BytesIO(conn.getProblemSample(problemId).content)
 
     zfile = zipfile.ZipFile(fileSteram)
     zfile.extractall(output_dir)
 
 
-def downloadProblemSamples(domjudge_url, problems, output_dir):
+def downloadProblemSamples(conn, problems, output_dir):
     for problem in problems:
         dir_path = f'{output_dir}/{problem["name"]}'
         os.makedirs(dir_path, exist_ok=True)
-        downloadProblemSample(domjudge_url, problem['id'], dir_path)
+        downloadProblemSample(conn, problem['id'], dir_path)
 
         print(f'downloaded samples for {problem["name"]}')
 
         time.sleep(2)
 
 
-def getProblemList(domjudge_url):
-    standings_url = f'{domjudge_url}/public'
-    res = requests.get(standings_url)
+def getProblemList(conn):
+    res = conn.getProblemList()
+
     soup = BeautifulSoup(res.content, 'html.parser')
 
     header = soup.find(class_='scoreheader')
@@ -97,7 +155,9 @@ def getProblemList(domjudge_url):
 if __name__ == '__main__':
     args = parser.parse_args()
 
-    problems = getProblemList(args.url)
+    conn = DOMJudgeConnector(args.url, args.user, args.password)
+
+    problems = getProblemList(conn)
 
     print(f'problems: {len(problems)}')
 
@@ -105,7 +165,7 @@ if __name__ == '__main__':
     samples_dir = os.path.join(args.output, 'samples')
 
     os.makedirs(texts_dir, exist_ok=True)
-    downloadProblemTexts(args.url, problems, texts_dir)
+    downloadProblemTexts(conn, problems, texts_dir)
 
     os.makedirs(samples_dir, exist_ok=True)
-    downloadProblemSamples(args.url, problems, samples_dir)
+    downloadProblemSamples(conn, problems, samples_dir)
