@@ -12,12 +12,15 @@ import argparse
 import mimetypes
 
 parser = argparse.ArgumentParser(
-    description='Download Problemset from DOMJudge')
+    description='Download problemset from DOMJudge')
 
 parser.add_argument('url', type=str, help='DOMJudge URL')
-parser.add_argument('-o', '--output', type=str, default='.')
-parser.add_argument('-u', '--user', type=str, default='.')
-parser.add_argument('-p', '--password', type=str, default='.')
+parser.add_argument('-o', '--output', type=str,
+                    default='.', metavar='OUTPUT_DIR')
+parser.add_argument('-u', '--username', type=str,
+                    default='.', help='username for DOMJudge')
+parser.add_argument('-p', '--password', type=str,
+                    default='.', help='password for DOMJudge')
 
 
 class DOMJudgeConnector:
@@ -155,7 +158,7 @@ def getProblemList(conn):
 if __name__ == '__main__':
     args = parser.parse_args()
 
-    conn = DOMJudgeConnector(args.url, args.user, args.password)
+    conn = DOMJudgeConnector(args.url, args.username, args.password)
 
     problems = getProblemList(conn)
 
