@@ -17,10 +17,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument('url', type=str, help='DOMJudge URL')
 parser.add_argument('-o', '--output', type=str,
                     default='.', metavar='OUTPUT_DIR')
-parser.add_argument('-u', '--username', type=str,
-                    default='.', help='username for DOMJudge')
-parser.add_argument('-p', '--password', type=str,
-                    default='.', help='password for DOMJudge')
+parser.add_argument('-u', '--username', type=str, help='username for DOMJudge')
+parser.add_argument('-p', '--password', type=str, help='password for DOMJudge')
 
 
 class DOMJudgeConnector:
@@ -96,20 +94,27 @@ def downloadProblemText(conn, problemName, problemId, file_dir):
 
 
 def downloadProblemTexts(conn, problems, output_dir):
-    pdf_merger = PyPDF2.PdfFileMerger()
+    text_paths = []
 
     for problem in problems:
         file_path = downloadProblemText(
             conn, problem['name'], problem['id'], output_dir)
 
-        pdf_merger.append(file_path)
+        text_paths.append(file_path)
 
         print(f'downloaded {file_path}')
 
         time.sleep(2)
 
-    pdf_merger.write(os.path.join(output_dir, 'all.pdf'))
-    pdf_merger.close()
+    try:
+        pdf_merger = PyPDF2.PdfFileMerger()
+        for path in text_paths:
+            pdf_merger.append(path, import_bookmarks=False)
+
+        pdf_merger.write(os.path.join(output_dir, 'all.pdf'))
+        pdf_merger.close()
+    except:
+        print('failed to merge texts')
 
 
 def downloadProblemSample(conn, problemId, output_dir):
